@@ -34,7 +34,9 @@ test('Wokwi report is inserted into PostgreSQL', { skip: !integrationPool }, asy
     status: 'PENDING',
     source: 'WOKWI_SIMULATION'
   };
-  const rawBody = Buffer.from(JSON.stringify(body));
+  // Must stay a string: superagent re-serializes a Buffer body, which would send
+  // different bytes than the ones the signature was computed over.
+  const rawBody = JSON.stringify(body);
   const secret = config.deviceApiKeys[deviceId];
   assert.ok(secret && secret.length >= 32, 'Set TEST_DEVICE_SECRET (32+ chars).');
 

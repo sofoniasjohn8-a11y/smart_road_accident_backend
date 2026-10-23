@@ -1,0 +1,79 @@
+# Base44 development stack for the Smart Road Accident Detection backend.
+#
+# Runs the API straight from the cloned source with live reload (node --watch);
+# PostgreSQL 16 is a plain infra service. The API is the app's only entry point,
+# so it answers on host port 3000.
+#
+#   docker compose -f docker-compose.base44.yml up -d --build
+#
+# Dependency installs happen at container startup (node_modules lives in a named
+# volume), so edits and lockfile changes never need an image rebuild.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: on-failure
+    environment:
+      POSTGRES_USER: road_safety
+      POSTGRES_PASSWORD: road_safety_dev_password
+      POSTGRES_DB: road_safety
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U road_safety -d road_safety"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # One-shot: applies src/db/schema.sql (idempotent) before the API starts.
+  migrate:
+    image: node:22-alpine
+    working_dir: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./.env.base44-defaults
+      - /run/base44/app.env
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    command: ["sh", "-ec", "npm ci --no-audit --no-fund && exec node scripts/migrate.js"]
+
+  api:
+    image: node:22-alpine
+    restart: on-failure
+    working_dir: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "3000:3000"
+    environment:
+      - BASE44_PREVIEW_MODE
+      # Preview origin (public host) plus the local one; CORS_ORIGINS is read by src/config.js.
+      - CORS_ORIGINS=http://localhost:3000,https://3000-${BASE44_PUBLIC_HOST_SUFFIX}
+    env_file:
+      - ./.env.base44-defaults
+      - /run/base44/app.env
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    command: ["sh", "-ec", "npm ci --no-audit --no-fund && exec node --watch src/server.js"]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  postgres_data:
+  node_modules:

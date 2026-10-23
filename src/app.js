@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config.js';
 import { errorHandler, notFound } from './middleware/error-handler.js';
 import apiRouter from './routes/api.js';
+import { statusPageHtml } from './views/status-page.js';
 
 export const app = express();
 
@@ -35,5 +36,9 @@ app.use('/api/accidents', rateLimit({
   legacyHeaders: false
 }));
 app.use('/api', apiRouter);
+// Human-readable landing page; sits outside the /api namespace used by the API contract.
+app.get('/', (_request, response) => {
+  response.type('html').send(statusPageHtml);
+});
 app.use(notFound);
 app.use(errorHandler);

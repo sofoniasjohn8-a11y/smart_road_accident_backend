@@ -11,6 +11,7 @@ const schema = z.object({
   DEVICE_API_KEYS: z.string().default('{}'),
   DEVICE_SIGNATURE_TOLERANCE_SECONDS: z.coerce.number().int().positive().default(300),
   CORS_ORIGINS: z.string().default(''),
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
   GOOGLE_APPLICATION_CREDENTIALS: z.string().optional().default(''),
   FCM_TOKEN_ENCRYPTION_KEY: z.string().optional().default('')
 });

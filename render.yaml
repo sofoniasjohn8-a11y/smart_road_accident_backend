@@ -1,0 +1,52 @@
+# Render Blueprint for the Smart Road Accident Detection backend.
+# https://render.com/docs/blueprint-spec
+#
+# Render Dashboard -> New -> Blueprint -> pick this repository. Render creates the
+# web service and the PostgreSQL database below, generates JWT_SECRET, and prompts
+# for DEVICE_API_KEYS. See README.md ("Deploying on Render") for the deployment
+# steps, the free-tier limits and the paid upgrade path.
+
+databases:
+  - name: road-safety-db
+    databaseName: road_safety
+    user: road_safety
+    plan: free
+    region: frankfurt
+    # External access is allowed by default, which is what lets you run
+    # scripts/create-worker.js against this database from your machine. Add
+    # "ipAllowList: []" to allow only Render private-network connections.
+
+services:
+  - type: web
+    name: smart-road-accident-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    # Render deploys the repository's default branch (main).
+    autoDeployTrigger: commit
+    buildCommand: npm ci --omit=dev
+    # The schema script is idempotent, so re-applying it on every start is safe.
+    # On a paid plan prefer preDeployCommand: npm run db:migrate + startCommand: npm start.
+    startCommand: npm run db:migrate && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: road-safety-db
+          property: connectionString
+      # Internal Render connection inside the private network.
+      - key: DATABASE_SSL
+        value: "false"
+      - key: JWT_SECRET
+        # Render generates a 256-bit value; the app requires at least 32 characters.
+        generateValue: true
+      # Every request reaches the service through Render's proxy, so the client IP
+      # arrives in X-Forwarded-For and the rate limits must key on it.
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      # Real per-device secrets (JSON object, each secret 32+ characters). Entered in
+      # the dashboard on first apply; until then the API rejects device reports with 401.
+      - key: DEVICE_API_KEYS
+        sync: false

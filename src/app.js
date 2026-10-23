@@ -10,6 +10,12 @@ import { statusPageHtml } from './views/status-page.js';
 export const app = express();
 
 app.disable('x-powered-by');
+// Behind a reverse proxy or load balancer the client IP only arrives in
+// X-Forwarded-For; without this the rate limits below would key on the proxy
+// itself, so every client would share a single bucket.
+if (config.TRUST_PROXY_HOPS > 0) {
+  app.set('trust proxy', config.TRUST_PROXY_HOPS);
+}
 app.use(helmet());
 app.use(cors({
   origin(origin, callback) {

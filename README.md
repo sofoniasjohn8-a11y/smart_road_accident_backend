@@ -359,12 +359,42 @@ To enable notifications:
 
 The Firebase Admin SDK is initialized only on the backend. Notifications are attempted after PostgreSQL has committed the new incident. Failures are logged, represented in the response, and do not falsely claim delivery or remove the stored incident. Invalid/expired registration tokens are deleted.
 
-## Public HTTPS deployment
+## Deploying to another provider (general checklist)
 
 1. Provision a managed Node.js host and managed PostgreSQL database. Deploy this repository using `npm install` and `npm start`; run `npm run db:migrate` once with the production database environment.
-2. Configure all required environment variables in the provider's secret settings: `DATABASE_URL`, `DATABASE_SSL=true` when the provider requires TLS, a unique `JWT_SECRET`, the `DEVICE_API_KEYS` JSON map, `PORT` if the host provides one, and a production `CORS_ORIGINS` allowlist. Never publish `.env` or credentials.
+2. Configure all required environment variables in the provider's secret settings: `DATABASE_URL`, `DATABASE_SSL=true` when the provider requires TLS, a unique `JWT_SECRET`, the `DEVICE_API_KEYS` JSON map, `PORT` if the host provides one, a production `CORS_ORIGINS` allowlist, and `TRUST_PROXY_HOPS=1` if the host puts a load balancer or reverse proxy in front of the API. Never publish `.env` or credentials.
 3. Configure the host's custom domain or built-in domain with valid TLS. Confirm the public endpoint responds at `https://<your-host>/api/health` and reports the database connected.
 4. Set the Wokwi ESP32 sketch's `API_URL` to `https://<your-host>/api/accidents`. Configure its matching device ID and development device secret through Wokwi secrets where available; remember simulated firmware secrets are inspectable.
 5. Verify one signed report is stored, then log in through Postman and confirm it appears in `GET /api/accidents`.
 
-The deployment provider/domain is intentionally unspecified; choose one that supports Node.js, HTTPS, environment secrets, outbound PostgreSQL, and persistent logs. Do not treat an ephemeral free-tier service as an emergency response platform.
+For any other provider, choose one that supports Node.js, HTTPS, environment secrets, outbound PostgreSQL, and persistent logs. Do not treat an ephemeral free-tier service as an emergency response platform. The next section covers the Render setup that ships with this repository.
+
+## Deploying on Render
+
+`render.yaml` at the repository root is a [Render Blueprint](https://render.com/docs/blueprint-spec). It creates the API web service and a Render PostgreSQL database, wires `DATABASE_URL` from the database into the service over Render's private network, and generates `JWT_SECRET`.
+
+1. Merge this branch to the default branch (`main`). Render deploys the repository's default branch unless the Blueprint sets `branch:`.
+2. In the Render Dashboard choose **New → Blueprint**, select this repository, and apply it. That creates:
+   - `smart-road-accident-api` — Node web service. Build `npm ci --omit=dev`; start `npm run db:migrate && npm start`; health check `GET /api/health`.
+   - `road-safety-db` — PostgreSQL instance, reachable from the service at `DATABASE_URL`.
+3. When Render prompts for `DEVICE_API_KEYS`, paste a JSON object of real per-device secrets, each at least 32 characters, for example `{"ROAD_DEVICE_001":"<random-32+-character-secret>"}`. Until it is set, the API boots but rejects every device report with `401`. Use the same value in the matching Wokwi firmware.
+4. Confirm `https://<service-name>.onrender.com/api/health` answers `{"status":"ok","database":"connected"}`.
+5. Create the first responder account once, against the production database. Worker accounts are not created by the Blueprint: run `WORKER_EMAIL=you@example.invalid WORKER_PASSWORD="<12+-character-password>" npm run worker:create` with the database's **external** connection string (Render Dashboard → the database → Connect) and `DATABASE_SSL=true` in that shell, or run the same command as a Render one-off job or from a service Shell where your plan provides one.
+6. Point the Wokwi ESP32 sketch's `API_URL` at `https://<service-name>.onrender.com/api/accidents` and set the Postman collection's `baseUrl` to `https://<service-name>.onrender.com`.
+7. Send one signed report, then log in as the worker and confirm it appears in `GET /api/accidents`.
+
+### Render-specific configuration
+
+- `TRUST_PROXY_HOPS=1` is set because every request arrives through Render's proxy. It makes the API read the client IP from `X-Forwarded-For`, which is what the login and incident rate limits key on. Without it all clients share one bucket — login would be limited to 10 attempts per 15 minutes for every worker together — and `express-rate-limit` logs a misconfiguration warning. Leave it `0` when the API is exposed directly.
+- `DATABASE_SSL=false` matches Render's internal connection string. Connecting from outside Render requires TLS: set `DATABASE_SSL=true` and make the database's CA certificate readable by Node (for example through `NODE_EXTRA_CA_CERTS`) before doing so. This project never disables certificate verification.
+- `CORS_ORIGINS` is only needed for browser clients; the Android app and the ESP32 send no `Origin`. Add exact origins, comma-separated. Anything else stays rejected with `403`.
+- Firebase Cloud Messaging stays optional. Render services have an ephemeral filesystem, so a service-account JSON must live outside the repository — use a Render Secret File and point `GOOGLE_APPLICATION_CREDENTIALS` at its absolute path — together with `FCM_TOKEN_ENCRYPTION_KEY`. Without them the API logs that FCM is disabled and storage, login and incident operations keep working.
+
+### Free tier and paid upgrade path
+
+The Blueprint uses Render's free plans, the cheapest way to run this prototype, with two limits worth knowing:
+
+- A **Free PostgreSQL database expires 30 days after creation**, and its data is deleted after the grace period. Upgrade the database to a paid plan (for example `basic-256mb`) to keep it.
+- A **Free web service spins down after 15 minutes without traffic**; the next request wakes it in about a minute.
+
+On a paid web plan, move the migration to Render's recommended place: set `preDeployCommand: npm run db:migrate` and `startCommand: npm start`, since pre-deploy commands are not available on free instance types.

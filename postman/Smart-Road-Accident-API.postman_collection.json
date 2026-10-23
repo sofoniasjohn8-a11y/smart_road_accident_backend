@@ -1,0 +1,166 @@
+{
+  "info": {
+    "name": "Smart Road Accident API",
+    "description": "Local prototype requests. Configure collection variables before use; never share real device secrets in a public workspace.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "deviceId", "value": "ROAD_DEVICE_001" },
+    { "key": "deviceSecret", "value": "" },
+    { "key": "workerEmail", "value": "worker@example.invalid" },
+    { "key": "workerPassword", "value": "" },
+    { "key": "accessToken", "value": "" },
+    { "key": "incidentId", "value": "" },
+    { "key": "fcmToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/health" }
+    },
+    {
+      "name": "Create Wokwi accident (signed)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const nonce = pm.variables.replaceIn('{{$guid}}');",
+              "const body = pm.variables.replaceIn(pm.request.body.raw);",
+              "const secret = pm.collectionVariables.get('deviceSecret');",
+              "const signature = CryptoJS.HmacSHA256(`${timestamp}.${nonce}.${body}`, secret).toString(CryptoJS.enc.Hex);",
+              "pm.request.headers.upsert({ key: 'X-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+              "pm.request.headers.upsert({ key: 'X-Device-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-Device-Nonce', value: nonce });",
+              "pm.request.headers.upsert({ key: 'X-Device-Signature', value: signature });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('incidentId', pm.response.json().incident.id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deviceId\": \"{{deviceId}}\",\n  \"eventType\": \"SUSPECTED_ACCIDENT\",\n  \"latitude\": 11.5942,\n  \"longitude\": 37.3908,\n  \"status\": \"PENDING\",\n  \"source\": \"WOKWI_SIMULATION\"\n}"
+        },
+        "url": "{{baseUrl}}/api/accidents"
+      }
+    },
+    {
+      "name": "Worker login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('accessToken', pm.response.json().accessToken);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{workerEmail}}\",\n  \"password\": \"{{workerPassword}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/auth/login"
+      }
+    },
+    {
+      "name": "List incidents",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": "{{baseUrl}}/api/accidents?status=PENDING"
+      }
+    },
+    {
+      "name": "Get incident",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": "{{baseUrl}}/api/accidents/{{incidentId}}"
+      }
+    },
+    {
+      "name": "Acknowledge incident",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"ACKNOWLEDGED\",\n  \"notes\": \"Responder is on the way.\"\n}"
+        },
+        "url": "{{baseUrl}}/api/accidents/{{incidentId}}/status"
+      }
+    },
+    {
+      "name": "Resolve incident (run after acknowledgement)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"RESOLVED\",\n  \"notes\": \"Incident resolved by responder.\"\n}"
+        },
+        "url": "{{baseUrl}}/api/accidents/{{incidentId}}/status"
+      }
+    },
+    {
+      "name": "Register Android FCM device",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"token\": \"{{fcmToken}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/workers/me/devices"
+      }
+    },
+    {
+      "name": "Unregister Android FCM device",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"token\": \"{{fcmToken}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/workers/me/devices"
+      }
+    }
+  ]
+}

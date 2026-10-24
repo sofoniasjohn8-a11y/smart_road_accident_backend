@@ -12,6 +12,7 @@ export const statusPageHtml = `<!doctype html>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Smart Road Accident Detection API</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <style>
       :root { color-scheme: light dark; }
       body {

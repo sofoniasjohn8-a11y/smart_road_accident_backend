@@ -5,7 +5,9 @@
 A backend-only HTTP API (Node.js 20+/Express 5 + PostgreSQL). There is no web UI:
 port 3000 serves the JSON API itself. `GET /` returns a small static status page
 (`src/views/status-page.js`, a link list of the endpoints) so the preview has a document to
-render — everything under `/api` is the documented API. Use `GET /api/health` to see that it is
+render — everything under `/api` is the documented API. The page declares an inline SVG
+favicon, served at `/favicon.svg` and `/favicon.ico` (`src/views/favicon.js`); without it
+browsers probe `/favicon.ico` and the preview reports a 404. Use `GET /api/health` to see that it is
 alive, and the endpoints in README.md to exercise it.
 
 ## Running it

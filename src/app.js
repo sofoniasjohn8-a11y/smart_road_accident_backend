@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { errorHandler, notFound } from './middleware/error-handler.js';
 import apiRouter from './routes/api.js';
 import { statusPageHtml } from './views/status-page.js';
+import { faviconSvg } from './views/favicon.js';
 
 export const app = express();
 
@@ -39,6 +40,10 @@ app.use('/api', apiRouter);
 // Human-readable landing page; sits outside the /api namespace used by the API contract.
 app.get('/', (_request, response) => {
   response.type('html').send(statusPageHtml);
+});
+// Served for the status page's icon link; /favicon.ico covers browsers that probe it directly.
+app.get(['/favicon.svg', '/favicon.ico'], (_request, response) => {
+  response.type('image/svg+xml').send(faviconSvg);
 });
 app.use(notFound);
 app.use(errorHandler);

@@ -8,6 +8,10 @@ const schema = z.object({
   DATABASE_SSL: z.enum(['true', 'false']).default('false'),
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('8h'),
+  WORKER_REGISTRATION_SECRET: z.preprocess(
+    (value) => value === '' ? undefined : value,
+    z.string().min(32).optional()
+  ),
   DEVICE_API_KEYS: z.string().default('{}'),
   DEVICE_SIGNATURE_TOLERANCE_SECONDS: z.coerce.number().int().positive().default(300),
   CORS_ORIGINS: z.string().default(''),

@@ -29,6 +29,12 @@ app.use('/api/auth/login', rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false
 }));
+app.use('/api/auth/register', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false
+}));
 app.use('/api/accidents', rateLimit({
   windowMs: 60 * 1000,
   limit: 120,

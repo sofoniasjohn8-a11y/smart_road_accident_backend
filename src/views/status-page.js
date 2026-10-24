@@ -56,6 +56,7 @@ export const statusPageHtml = `<!doctype html>
     <h2>Response workers</h2>
     <table>
       <tbody>
+        <tr><td class="method">POST</td><td><code>/api/auth/register</code></td><td>Create a worker account; requires the server-side registration secret.</td></tr>
         <tr><td class="method">POST</td><td><code>/api/auth/login</code></td><td>Worker login, returns a bearer token.</td></tr>
         <tr><td class="method">GET</td><td><code>/api/accidents</code></td><td>List incidents, optionally filtered by status.</td></tr>
         <tr><td class="method">GET</td><td><code>/api/accidents/:id</code></td><td>One incident.</td></tr>

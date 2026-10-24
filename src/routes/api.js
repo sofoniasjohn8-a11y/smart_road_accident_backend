@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { login } from '../controllers/auth-controller.js';
+import { login, register } from '../controllers/auth-controller.js';
 import {
   createIncident,
   getIncident,
@@ -9,6 +9,7 @@ import {
 } from '../controllers/accident-controller.js';
 import { registerDeviceToken, unregisterDeviceToken } from '../controllers/device-controller.js';
 import { deviceAuthentication } from '../middleware/device-auth.js';
+import { requireRegistrationSecret } from '../middleware/registration-auth.js';
 import { requireWorker } from '../middleware/worker-auth.js';
 import { validateBody, validateParams, validateQuery } from '../middleware/validate.js';
 import {
@@ -17,6 +18,7 @@ import {
   incidentIdParams,
   loginBody,
   newIncidentBody,
+  registrationBody,
   statusUpdateBody
 } from '../validation/schemas.js';
 import { HttpError } from '../lib/http-error.js';
@@ -52,6 +54,12 @@ router.patch(
 );
 
 router.post('/auth/login', validateBody(loginBody), login);
+router.post(
+  '/auth/register',
+  requireRegistrationSecret,
+  validateBody(registrationBody),
+  register
+);
 
 router.post('/workers/me/devices', requireWorker, validateBody(deviceTokenBody), registerDeviceToken);
 router.delete('/workers/me/devices', requireWorker, validateBody(deviceTokenBody), unregisterDeviceToken);

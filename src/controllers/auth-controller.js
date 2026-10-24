@@ -4,6 +4,24 @@ import { config } from '../config.js';
 import { pool } from '../db/pool.js';
 import { HttpError } from '../lib/http-error.js';
 
+export async function register(request, response) {
+  const { email, password } = request.validatedBody;
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO workers (email, password_hash) VALUES ($1, $2) RETURNING id, email',
+      [email, passwordHash]
+    );
+    return response.status(201).json({ worker: rows[0] });
+  } catch (error) {
+    if (error.code === '23505' && error.constraint === 'workers_email_key') {
+      throw new HttpError(409, 'An account with this email already exists.');
+    }
+    throw error;
+  }
+}
+
 export async function login(request, response) {
   const { email, password } = request.validatedBody;
   const { rows } = await pool.query(

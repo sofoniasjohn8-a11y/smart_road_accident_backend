@@ -17,7 +17,7 @@ Academic prototype backend using Node.js, Express, PostgreSQL, and optional Fire
 
 ## Not implemented / prototype limitations
 
-- No automatic account enrollment, password reset, refresh tokens, role hierarchy, incident pagination, dispatch escalation, or guaranteed notification retries.
+- No public account enrollment, password reset, refresh tokens, role hierarchy, incident pagination, dispatch escalation, or guaranteed notification retries. Worker registration is available only when enabled with a server-side admin secret.
 - Device HMAC replay protection is held in process memory. Run a single API instance for the prototype; use shared storage (for example Redis) and a persistent nonce/idempotency strategy before running multiple instances.
 - Secrets embedded in ESP32 firmware are extractable. HMAC plus TLS and rate limits discourage casual abuse, but this alone is not strong device identity. Use per-device revocable credentials and a provisioning/rotation process for a real deployment.
 - There is no live GPS validation. Wokwi sample coordinates remain demonstration data.
@@ -210,6 +210,36 @@ Success (`200`):
 
 Invalid credentials return `401`. Store the access token securely in the Android app and send it as `Authorization: Bearer <accessToken>`.
 
+### `POST /api/auth/register`
+
+Creates a worker account. Registration is disabled unless `WORKER_REGISTRATION_SECRET` is configured on the server. When enabled, this endpoint is limited to 5 attempts per 15 minutes per client IP and requires the secret in the `X-Worker-Registration-Secret` header. Keep this secret on a trusted admin tool or backend only; never include it in an Android app or other public client.
+
+Request:
+
+```json
+{ "email": "worker@example.invalid", "password": "a-private-password-of-12+-characters" }
+```
+
+Success (`201`):
+
+```json
+{ "worker": { "id": "98637f94-b775-41d0-aeac-5b89bdacb645", "email": "worker@example.invalid" } }
+```
+
+Invalid registration authorization is `401`; invalid request data is `400`; an existing email is `409`; registration is disabled when no server secret is configured (`503`). Registration does not return a login token; call `/api/auth/login` after successful registration. Generate a strong secret with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` and configure it as `WORKER_REGISTRATION_SECRET` in the server environment.
+
+Example Thunder Client request:
+
+```http
+POST https://<your-project>.vercel.app/api/auth/register
+Content-Type: application/json
+X-Worker-Registration-Secret: <the-secret-configured-on-the-server>
+```
+
+```json
+{ "email": "new-worker@example.com", "password": "a-private-password-of-12+-characters" }
+```
+
 ### `GET /api/accidents?status=PENDING`
 
 Requires a worker bearer token. `status` is optional and must be one of `PENDING`, `ACKNOWLEDGED`, `RESOLVED`. Results are newest first.
@@ -372,11 +402,12 @@ For a personal prototype without a Render card-verification step, deploy the Exp
    - `DATABASE_URL`: the Neon pooled connection string.
    - `DATABASE_SSL`: `true`.
    - `JWT_SECRET`: a unique random value of at least 32 characters.
+   - `WORKER_REGISTRATION_SECRET`: optional, unique random value of at least 32 characters. Generate it with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` and set it only if using the protected registration endpoint. Never add it to Android.
    - `DEVICE_API_KEYS`: a JSON object mapping device IDs to unique secrets of at least 32 characters each.
    - `NODE_ENV`: `production`.
    - `CORS_ORIGINS`: the exact HTTPS origin of any browser client, or leave it empty for native clients.
 5. Redeploy after saving environment variables. Confirm `https://<your-project>.vercel.app/api/health` returns `{"status":"ok","database":"connected"}`.
-6. Create a worker using the same Neon database from a trusted local machine with `DATABASE_SSL=true`, `WORKER_EMAIL`, and `WORKER_PASSWORD` set, then run `npm run worker:create`. Do not commit or share worker credentials.
+6. Create a worker using the same Neon database from a trusted local machine with `DATABASE_SSL=true`, `WORKER_EMAIL`, and `WORKER_PASSWORD` set, then run `npm run worker:create`; alternatively, configure `WORKER_REGISTRATION_SECRET` and call `POST /api/auth/register` from a trusted admin tool. Do not commit or share worker credentials or the registration secret.
 7. Set the Wokwi ESP32 sketch's `API_URL` to `https://<your-project>.vercel.app/api/accidents` and configure the matching device ID and secret through Wokwi secrets where available. Verify a signed report and worker login using Postman.
 
 The Render Blueprint in `render.yaml` is an alternative, but Render currently requires account card verification before Blueprint creation. Free hosting and database tiers can sleep, scale to zero, restart, and impose usage limits. The device replay cache is process-local and is not shared between serverless instances, so this prototype is not suitable for emergency response or other availability-critical use. Keep independent backups of any data you need.

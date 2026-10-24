@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 import { app } from '../src/app.js';
-import { newIncidentBody } from '../src/validation/schemas.js';
+import { config } from '../src/config.js';
+import { requireRegistrationSecret } from '../src/middleware/registration-auth.js';
+import { newIncidentBody, registrationBody } from '../src/validation/schemas.js';
 
 test('accident ingestion rejects requests without device authentication', async () => {
   const response = await request(app).post('/api/accidents').send({
@@ -49,4 +51,51 @@ test('incident validation rejects out-of-range coordinates and client status cha
     newIncidentBody.safeParse({ ...baseReport, status: 'RESOLVED' }).success,
     false
   );
+});
+
+test('worker registration requires a valid email and a 12-character password', () => {
+  assert.equal(
+    registrationBody.safeParse({ email: 'Worker@example.com', password: 'a-secure-password' }).success,
+    true
+  );
+  assert.equal(
+    registrationBody.safeParse({ email: 'not-an-email', password: 'short' }).success,
+    false
+  );
+});
+
+test('worker registration does not proceed without registration authorization', async () => {
+  const response = await request(app).post('/api/auth/register').send({
+    email: 'worker@example.com',
+    password: 'a-secure-password'
+  });
+  if (config.WORKER_REGISTRATION_SECRET) {
+    assert.equal(response.status, 401);
+    assert.match(response.body.error, /registration authorization is required/i);
+  } else {
+    assert.equal(response.status, 503);
+    assert.match(response.body.error, /registration is not enabled/i);
+  }
+});
+
+test('worker registration authorization accepts only the configured secret', () => {
+  const originalSecret = config.WORKER_REGISTRATION_SECRET;
+  const secret = 'test-registration-secret-that-is-long-enough';
+  config.WORKER_REGISTRATION_SECRET = secret;
+  try {
+    const authenticate = (providedSecret) => {
+      let error;
+      requireRegistrationSecret(
+        { get: () => providedSecret },
+        null,
+        (nextError) => { error = nextError; }
+      );
+      return error;
+    };
+
+    assert.equal(authenticate(secret), undefined);
+    assert.equal(authenticate(`${secret}wrong`).status, 401);
+  } finally {
+    config.WORKER_REGISTRATION_SECRET = originalSecret;
+  }
 });

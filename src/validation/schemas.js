@@ -28,6 +28,11 @@ export const loginBody = z.object({
   password: z.string().min(1).max(200)
 }).strict();
 
+export const registrationBody = z.object({
+  email: z.string().email().max(254).transform((email) => email.toLowerCase()),
+  password: z.string().min(12).max(200)
+}).strict();
+
 export const deviceTokenBody = z.object({
   token: z.string().trim().min(20).max(4096)
 }).strict();

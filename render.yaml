@@ -1,0 +1,44 @@
+# Render Blueprint for the Smart Road Accident Detection backend.
+# Free-tier deployment: one web service plus one PostgreSQL database, no credit card.
+# Walkthrough and free-tier limitations: docs/deploy-render.md
+#
+# Free web services have no shell access and cannot run one-off jobs, so the schema
+# migration runs as part of the start command. src/db/schema.sql is idempotent (every
+# statement is CREATE ... IF NOT EXISTS), so re-applying it on each boot is safe.
+
+databases:
+  - name: smart-road-accident-db
+    databaseName: road_safety
+    user: road_safety
+    plan: free
+
+services:
+  - type: web
+    name: smart-road-accident-api
+    runtime: node
+    plan: free
+    # Render injects PORT; src/config.js defaults to 3000 when it is unset.
+    buildCommand: npm ci
+    startCommand: npm run db:migrate && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smart-road-accident-db
+          property: connectionString
+      # The internal URL is used above, so the connection stays on Render's private
+      # network. See docs/deploy-render.md before changing this value.
+      - key: DATABASE_SSL
+        value: 'false'
+      - key: JWT_SECRET
+        generateValue: true
+      # Prompted by Render: JSON map of device ID to secret, 32+ characters each,
+      # for example {"ROAD_DEVICE_001":"<32+ character secret>"}
+      - key: DEVICE_API_KEYS
+        sync: false
+      # Prompted by Render: comma-separated allowlist of browser origins.
+      # Leave empty if no browser client calls this API.
+      - key: CORS_ORIGINS
+        sync: false

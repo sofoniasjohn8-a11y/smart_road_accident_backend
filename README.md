@@ -368,3 +368,7 @@ The Firebase Admin SDK is initialized only on the backend. Notifications are att
 5. Verify one signed report is stored, then log in through Postman and confirm it appears in `GET /api/accidents`.
 
 The deployment provider/domain is intentionally unspecified; choose one that supports Node.js, HTTPS, environment secrets, outbound PostgreSQL, and persistent logs. Do not treat an ephemeral free-tier service as an emergency response platform.
+
+### Deploying to Render (free tier)
+
+`render.yaml` in this repository is a Render Blueprint that creates a free web service and a free PostgreSQL database, connects them, and applies the schema migration on each boot. See `docs/deploy-render.md` for the walkthrough, the two values Render prompts you for (`DEVICE_API_KEYS`, `CORS_ORIGINS`), how to create the first worker account when the service has no shell, and the free-tier limits: the web service sleeps after 15 minutes idle and the free database expires 30 days after creation.

@@ -63,3 +63,13 @@ Worker accounts are created with `scripts/create-worker.js` (needs `WORKER_EMAIL
 `WORKER_PASSWORD`); there is no self-service enrollment. Incidents are only created by signed
 device reports, and the API has no delete endpoint — clean up test incidents directly in
 PostgreSQL if you create any.
+
+## Production deployment
+
+`render.yaml` at the repository root is a Render Blueprint (free web service + free PostgreSQL)
+and `docs/deploy-render.md` is the walkthrough. Free instances cannot run one-off jobs and have no
+shell, so the schema migration runs inside the service's `startCommand`; `preDeployCommand` is
+unavailable on the free plan. Free web services sleep after 15 minutes idle and free databases
+expire 30 days after creation. `src/db/pool.js` only supports verified TLS, so the Blueprint uses
+the database's internal connection string with `DATABASE_SSL=false` — read the SSL section of
+`docs/deploy-render.md` before changing either value.

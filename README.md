@@ -361,13 +361,22 @@ The Firebase Admin SDK is initialized only on the backend. Notifications are att
 
 ## Public HTTPS deployment
 
-The repository includes a Render Blueprint for a zero-cost prototype deployment: a free Render Node.js web service and an external PostgreSQL database. The blueprint expects a Neon connection string rather than creating a Render database, because Render's free PostgreSQL databases expire after 30 days.
+### Vercel Hobby and Neon Free
 
-1. Create a free PostgreSQL project on [Neon](https://neon.com/) and copy its connection string from the Neon dashboard. Keep this value private.
-2. In the [Render Dashboard](https://dashboard.render.com/), choose **New → Blueprint**, connect this GitHub repository, and deploy `render.yaml`. When prompted, enter the Neon connection string for `DATABASE_URL` and a JSON object of device IDs to secrets for `DEVICE_API_KEYS`. Each device secret must be at least 32 characters. The blueprint enables verified database TLS and generates `JWT_SECRET`.
-3. Wait for the deployment to finish, then confirm `https://<your-service>.onrender.com/api/health` returns `{"status":"ok","database":"connected"}`. The blueprint runs the idempotent schema migration when the service starts.
-4. If a browser-based client needs API access, set `CORS_ORIGINS` in Render to its exact HTTPS origin. Leave it empty for native clients that do not use browser CORS.
-5. Create a worker account from a trusted local machine by setting `DATABASE_URL` to the same Neon connection string, `DATABASE_SSL=true`, `WORKER_EMAIL`, and `WORKER_PASSWORD`, then running `npm run worker:create`. Do not put worker credentials in source control or send them in chat.
-6. Set the Wokwi ESP32 sketch's `API_URL` to `https://<your-service>.onrender.com/api/accidents` and configure its matching device ID and secret through Wokwi secrets where available. Verify a signed report and worker login using Postman.
+For a personal prototype without a Render card-verification step, deploy the Express app as a Vercel Function and use Neon Free for PostgreSQL. Vercel's Hobby plan is intended for personal projects; check its current terms and usage limits before using it for anything beyond that. Neon Free does not require a credit card, but has compute, storage, and transfer limits.
 
-Free services are suitable for demos, not emergency response: Render's free web service spins down after inactivity and can take about a minute to wake; Neon free compute also scales to zero and has usage limits. Review both providers' current free-tier limits and keep independent backups of any data you need. Never rely on this prototype as the only way to report a real emergency.
+1. Create a free PostgreSQL project on [Neon](https://neon.com/) and copy its **pooled** connection string. Keep the URL private.
+2. In Neon's SQL Editor, run the contents of `src/db/schema.sql` to create the schema.
+3. Sign in to [Vercel](https://vercel.com/), import this GitHub repository, and deploy it as a Node.js project. `src/app.js` exports the Express app for Vercel's Express runtime. No separate Vercel config file is required.
+4. In the Vercel project settings, add these environment variables for Production:
+   - `DATABASE_URL`: the Neon pooled connection string.
+   - `DATABASE_SSL`: `true`.
+   - `JWT_SECRET`: a unique random value of at least 32 characters.
+   - `DEVICE_API_KEYS`: a JSON object mapping device IDs to unique secrets of at least 32 characters each.
+   - `NODE_ENV`: `production`.
+   - `CORS_ORIGINS`: the exact HTTPS origin of any browser client, or leave it empty for native clients.
+5. Redeploy after saving environment variables. Confirm `https://<your-project>.vercel.app/api/health` returns `{"status":"ok","database":"connected"}`.
+6. Create a worker using the same Neon database from a trusted local machine with `DATABASE_SSL=true`, `WORKER_EMAIL`, and `WORKER_PASSWORD` set, then run `npm run worker:create`. Do not commit or share worker credentials.
+7. Set the Wokwi ESP32 sketch's `API_URL` to `https://<your-project>.vercel.app/api/accidents` and configure the matching device ID and secret through Wokwi secrets where available. Verify a signed report and worker login using Postman.
+
+The Render Blueprint in `render.yaml` is an alternative, but Render currently requires account card verification before Blueprint creation. Free hosting and database tiers can sleep, scale to zero, restart, and impose usage limits. The device replay cache is process-local and is not shared between serverless instances, so this prototype is not suitable for emergency response or other availability-critical use. Keep independent backups of any data you need.

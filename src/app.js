@@ -50,3 +50,5 @@ app.get('/', (_request, response) => {
 });
 app.use(notFound);
 app.use(errorHandler);
+
+export default app;

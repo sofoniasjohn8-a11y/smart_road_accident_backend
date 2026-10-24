@@ -65,10 +65,13 @@ test('worker registration requires a valid email and a 12-character password', (
 });
 
 test('worker registration does not proceed without registration authorization', async () => {
-  const response = await request(app).post('/api/auth/register').send({
-    email: 'worker@example.com',
-    password: 'a-secure-password'
-  });
+  const response = await request(app)
+    .post('/api/auth/register')
+    .set('X-Forwarded-For', '198.51.100.10')
+    .send({
+      email: 'worker@example.com',
+      password: 'a-secure-password'
+    });
   if (config.WORKER_REGISTRATION_SECRET) {
     assert.equal(response.status, 401);
     assert.match(response.body.error, /registration authorization is required/i);

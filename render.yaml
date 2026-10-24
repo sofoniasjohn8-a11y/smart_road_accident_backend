@@ -1,0 +1,47 @@
+# Render Blueprint for the Smart Road Accident Detection backend.
+# Deploy from the Render dashboard: New -> Blueprint -> select this repository.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# After the first deploy the API is served at https://<service-name>.onrender.com
+# (see README.md "Public HTTPS deployment" for the API contract).
+
+services:
+  - type: web
+    name: road-accident-api
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm ci --no-audit --no-fund
+    startCommand: npm start
+    # src/db/schema.sql is idempotent; runs on every deploy.
+    preDeployCommand: npm run db:migrate
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: road-accident-db
+          property: connectionString
+      - key: DATABASE_SSL
+        value: "true"
+      # Render generates a strong random value; overwrite it in the dashboard
+      # if you want to control it yourself.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      # Required to boot: JSON object of device IDs to secrets, each secret
+      # at least 32 characters, e.g. {"ROAD_DEVICE_001":"<43-char random string>"}
+      - key: DEVICE_API_KEYS
+        sync: false
+      # Native mobile apps do not enforce CORS; set this only for a web client
+      # origin you want to allow (comma-separated list).
+      - key: CORS_ORIGINS
+        sync: false
+
+databases:
+  - name: road-accident-db
+    plan: basic-256mb
+    databaseName: road_safety
+    user: road_safety

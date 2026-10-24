@@ -9,20 +9,18 @@ services:
   - type: web
     name: road-accident-api
     runtime: node
-    plan: starter
+    plan: free
     region: frankfurt
     buildCommand: npm ci --no-audit --no-fund
-    startCommand: npm start
-    # src/db/schema.sql is idempotent; runs on every deploy.
-    preDeployCommand: npm run db:migrate
+    # Free Render services do not support pre-deploy commands.
+    # The schema is idempotent, so applying it at startup is safe.
+    startCommand: npm run db:migrate && npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: road-accident-db
-          property: connectionString
+        sync: false
       - key: DATABASE_SSL
         value: "true"
       # Render generates a strong random value; overwrite it in the dashboard
@@ -38,10 +36,4 @@ services:
       # Native mobile apps do not enforce CORS; set this only for a web client
       # origin you want to allow (comma-separated list).
       - key: CORS_ORIGINS
-        sync: false
-
-databases:
-  - name: road-accident-db
-    plan: basic-256mb
-    databaseName: road_safety
-    user: road_safety
+        value: ""

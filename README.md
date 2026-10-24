@@ -361,10 +361,13 @@ The Firebase Admin SDK is initialized only on the backend. Notifications are att
 
 ## Public HTTPS deployment
 
-1. Provision a managed Node.js host and managed PostgreSQL database. Deploy this repository using `npm install` and `npm start`; run `npm run db:migrate` once with the production database environment.
-2. Configure all required environment variables in the provider's secret settings: `DATABASE_URL`, `DATABASE_SSL=true` when the provider requires TLS, a unique `JWT_SECRET`, the `DEVICE_API_KEYS` JSON map, `PORT` if the host provides one, and a production `CORS_ORIGINS` allowlist. Never publish `.env` or credentials.
-3. Configure the host's custom domain or built-in domain with valid TLS. Confirm the public endpoint responds at `https://<your-host>/api/health` and reports the database connected.
-4. Set the Wokwi ESP32 sketch's `API_URL` to `https://<your-host>/api/accidents`. Configure its matching device ID and development device secret through Wokwi secrets where available; remember simulated firmware secrets are inspectable.
-5. Verify one signed report is stored, then log in through Postman and confirm it appears in `GET /api/accidents`.
+The repository includes a Render Blueprint for a zero-cost prototype deployment: a free Render Node.js web service and an external PostgreSQL database. The blueprint expects a Neon connection string rather than creating a Render database, because Render's free PostgreSQL databases expire after 30 days.
 
-The deployment provider/domain is intentionally unspecified; choose one that supports Node.js, HTTPS, environment secrets, outbound PostgreSQL, and persistent logs. Do not treat an ephemeral free-tier service as an emergency response platform.
+1. Create a free PostgreSQL project on [Neon](https://neon.com/) and copy its connection string from the Neon dashboard. Keep this value private.
+2. In the [Render Dashboard](https://dashboard.render.com/), choose **New → Blueprint**, connect this GitHub repository, and deploy `render.yaml`. When prompted, enter the Neon connection string for `DATABASE_URL` and a JSON object of device IDs to secrets for `DEVICE_API_KEYS`. Each device secret must be at least 32 characters. The blueprint enables verified database TLS and generates `JWT_SECRET`.
+3. Wait for the deployment to finish, then confirm `https://<your-service>.onrender.com/api/health` returns `{"status":"ok","database":"connected"}`. The blueprint runs the idempotent schema migration when the service starts.
+4. If a browser-based client needs API access, set `CORS_ORIGINS` in Render to its exact HTTPS origin. Leave it empty for native clients that do not use browser CORS.
+5. Create a worker account from a trusted local machine by setting `DATABASE_URL` to the same Neon connection string, `DATABASE_SSL=true`, `WORKER_EMAIL`, and `WORKER_PASSWORD`, then running `npm run worker:create`. Do not put worker credentials in source control or send them in chat.
+6. Set the Wokwi ESP32 sketch's `API_URL` to `https://<your-service>.onrender.com/api/accidents` and configure its matching device ID and secret through Wokwi secrets where available. Verify a signed report and worker login using Postman.
+
+Free services are suitable for demos, not emergency response: Render's free web service spins down after inactivity and can take about a minute to wake; Neon free compute also scales to zero and has usage limits. Review both providers' current free-tier limits and keep independent backups of any data you need. Never rely on this prototype as the only way to report a real emergency.
